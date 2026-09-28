@@ -1,0 +1,1 @@
+"""StudentStay Backend Application Package."""
