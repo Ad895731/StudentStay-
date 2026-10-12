@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.core.config import settings
-from app.routers import health_router
+from app.routers import auth_router, health_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -10,6 +10,8 @@ app = FastAPI(
 
 # Include routers
 app.include_router(health_router)
+app.include_router(auth_router)
+
 
 
 @app.get("/")

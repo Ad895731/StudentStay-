@@ -1,21 +1,51 @@
-# Environment files
+# Environment files and secrets
 .env
 .env.*
+*.env
+*.env.*
 !.env.example
+!*.env.example
+!**/.env.example
+!**/*.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+*.keystore
+*.jks
 
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
 
 # Virtual environments
 .venv/
 venv/
 env/
+ENV/
+env.bak/
+venv.bak/
 
-# macOS
+# Operating System & macOS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+__MACOSX/
+**/__MACOSX/
 
 # Flutter / Dart
 .dart_tool/
@@ -23,11 +53,33 @@ env/
 .flutter-plugins-dependencies
 .packages
 .pub-cache/
+.pub/
 build/
+**/build/
 
-# IDE
+# Android build & local configuration
+**/android/.gradle/
+**/android/local.properties
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+
+# iOS / macOS build & ephemeral files
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/ephemeral/
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/macos/Flutter/ephemeral/
+
+# IDE and Editor files
 .idea/
 .vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
 
 # Coverage
 coverage/
@@ -36,3 +88,4 @@ coverage/
 *.db
 *.sqlite
 *.sqlite3
+
