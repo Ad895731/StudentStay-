@@ -1,30 +1,50 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:studentstay_app/main.dart';
+import 'package:studentstay_app/services/api_service.dart';
+import 'package:studentstay_app/services/auth_service.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('StudentStay app launches and renders navigation destinations',
+      (WidgetTester tester) async {
+    final mockClient = MockClient((request) async {
+      if (request.url.path.contains('/properties')) {
+        return http.Response(
+          jsonEncode({
+            'items': [],
+            'total': 0,
+            'page': 1,
+            'page_size': 10,
+            'pages': 0,
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response('Not found', 404);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    final apiService = ApiService(client: mockClient);
+    final authService = AuthService(apiService: apiService);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    await tester.pumpWidget(
+      StudentStayApp(
+        apiService: apiService,
+        authService: authService,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Explore'), findsWidgets);
+    expect(find.text('Map View'), findsWidgets);
+    expect(find.text('Owner Portal'), findsWidgets);
+    expect(find.text('Account'), findsWidgets);
   });
 }
