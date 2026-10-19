@@ -40,7 +40,7 @@ class _StudentStayAppState extends State<StudentStayApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'StudentStay🚀',
+      title: 'StudentStay',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
