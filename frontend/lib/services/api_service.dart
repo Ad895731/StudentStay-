@@ -9,15 +9,62 @@ class ApiService {
   final String baseUrl;
   final http.Client _client;
 
+  /// Resolves the appropriate API base URL across platforms:
+  /// - `API_BASE_URL` from --dart-define if supplied (e.g. physical device LAN IP)
+  /// - Android emulator: `http://10.0.2.2:8000`
+  /// - iOS simulator / Web / Desktop: `http://127.0.0.1:8000`
+  static String resolveBaseUrl([String? explicitUrl]) {
+    String url;
+    if (explicitUrl != null && explicitUrl.isNotEmpty) {
+      url = explicitUrl;
+    } else {
+      const fromEnv = String.fromEnvironment('API_BASE_URL');
+      if (fromEnv.isNotEmpty) {
+        url = fromEnv;
+      } else if (kIsWeb) {
+        url = 'http://127.0.0.1:8000';
+      } else {
+        switch (defaultTargetPlatform) {
+          case TargetPlatform.android:
+            url = 'http://10.0.2.2:8000';
+            break;
+          case TargetPlatform.iOS:
+          case TargetPlatform.macOS:
+          case TargetPlatform.linux:
+          case TargetPlatform.windows:
+          default:
+            url = 'http://127.0.0.1:8000';
+            break;
+        }
+      }
+    }
+    return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+  }
+
+  /// Extracts user-friendly error messages from FastAPI responses (handling both string details and validation error lists).
+  static String extractErrorMessage(http.Response response, {String fallback = 'An error occurred'}) {
+    try {
+      final body = jsonDecode(response.body);
+      if (body is Map && body['detail'] != null) {
+        final detail = body['detail'];
+        if (detail is String) return detail;
+        if (detail is List && detail.isNotEmpty) {
+          final first = detail.first;
+          if (first is Map && first['msg'] != null) {
+            return first['msg'].toString();
+          }
+          return detail.join(', ');
+        }
+        return detail.toString();
+      }
+    } catch (_) {}
+    return fallback;
+  }
+
   ApiService({
     String? baseUrl,
     http.Client? client,
-  })  : baseUrl = baseUrl ??
-            (kIsWeb
-                ? 'http://localhost:8000'
-                : (defaultTargetPlatform == TargetPlatform.android
-                    ? 'http://10.0.2.2:8000'
-                    : 'http://localhost:8000')),
+  })  : baseUrl = resolveBaseUrl(baseUrl),
         _client = client ?? http.Client();
 
   /// Authenticates user and returns JWT access token.
@@ -36,14 +83,7 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return data['access_token'] as String;
     } else {
-      String message = 'Invalid email or password';
-      try {
-        final body = jsonDecode(response.body);
-        if (body is Map && body['detail'] != null) {
-          message = body['detail'].toString();
-        }
-      } catch (_) {}
-      throw Exception(message);
+      throw Exception(extractErrorMessage(response, fallback: 'Invalid email or password'));
     }
   }
 
@@ -70,14 +110,7 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return User.fromJson(data);
     } else {
-      String message = 'Registration failed (${response.statusCode})';
-      try {
-        final body = jsonDecode(response.body);
-        if (body is Map && body['detail'] != null) {
-          message = body['detail'].toString();
-        }
-      } catch (_) {}
-      throw Exception(message);
+      throw Exception(extractErrorMessage(response, fallback: 'Registration failed (${response.statusCode})'));
     }
   }
 
@@ -252,7 +285,7 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return Property.fromJson(data);
     } else {
-      throw Exception('Failed to create property: ${response.statusCode} ${response.body}');
+      throw Exception(extractErrorMessage(response, fallback: 'Failed to create property (${response.statusCode})'));
     }
   }
 
@@ -276,7 +309,7 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return Property.fromJson(data);
     } else {
-      throw Exception('Failed to update property: ${response.statusCode} ${response.body}');
+      throw Exception(extractErrorMessage(response, fallback: 'Failed to update property (${response.statusCode})'));
     }
   }
 
@@ -327,14 +360,7 @@ class ApiService {
     } else if (response.statusCode == 401 || response.statusCode == 403) {
       throw Exception('Authentication failed or not authorized to upload images.');
     } else {
-      String message = 'Failed to upload image (${response.statusCode})';
-      try {
-        final body = jsonDecode(response.body);
-        if (body is Map && body['detail'] != null) {
-          message = body['detail'].toString();
-        }
-      } catch (_) {}
-      throw Exception(message);
+      throw Exception(extractErrorMessage(response, fallback: 'Failed to upload image (${response.statusCode})'));
     }
   }
 
@@ -359,14 +385,7 @@ class ApiService {
     } else if (response.statusCode == 404) {
       throw Exception('Image or property not found.');
     } else {
-      String message = 'Failed to delete image (${response.statusCode})';
-      try {
-        final body = jsonDecode(response.body);
-        if (body is Map && body['detail'] != null) {
-          message = body['detail'].toString();
-        }
-      } catch (_) {}
-      throw Exception(message);
+      throw Exception(extractErrorMessage(response, fallback: 'Failed to delete image (${response.statusCode})'));
     }
   }
 }

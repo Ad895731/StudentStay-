@@ -89,3 +89,6 @@ coverage/
 *.sqlite
 *.sqlite3
 
+# Personal notes & scratchpads
+my folder/
+*.txt

@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: studentstay_user
+      POSTGRES_PASSWORD: studentstay_pass
+      POSTGRES_DB: studentstay_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://studentstay_user:studentstay_pass@db:5432/studentstay_db
+      JWT_SECRET_KEY: dev-secret-key-change-in-production-studentstay
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      SUPABASE_URL: https://wcsgiqxnpqbmxnzlfuej.supabase.co
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY}
+      SUPABASE_STORAGE_BUCKET: property-images
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

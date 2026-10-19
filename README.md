@@ -17,74 +17,64 @@ Students relocating to a new city for college, coaching, internships, or jobs fr
 
 StudentStay provides a discovery experience tailored specifically to student housing:
 - **Search & Filtering:** Search by city, college/institute, budget, commute distance, room sharing type, food availability, and key amenities.
-- **Verification & Reviews:** Clear verification badges, photo galleries, and genuine peer reviews.
-- **Interactive Exploration:** Map-based view for locating stays near campus.
-- **Engagement:** Shortlisting, in-app owner inquiries, and visit scheduling.
+- **Verification & Status:** Clear verification badges (`VERIFIED` vs `PENDING REVIEW`), availability indicators, and photo galleries.
+- **Interactive Exploration:** Map-based view for locating stays near campus using OpenStreetMap markers and thumbnail previews.
+- **Google Maps Directions:** Turn-by-turn navigation directly from property cards.
 - **Role-Based Workflows:** Distinct portals and permissions for Students, Property Owners, and Platform Administrators.
 
 ---
 
-## 🛠️ Current Tech Stack
+## 🛠️ Tech Stack
 
-- **Frontend:** Flutter & Dart (Cross-platform: Mobile, Web, Desktop)
-- **Backend:** FastAPI (Python)
-- **Database:** PostgreSQL
-- **ORM:** SQLAlchemy 2.x
-- **Migrations:** Alembic
-- **Authentication:** JWT (PyJWT) & Argon2 password hashing
-- **Testing:** pytest (Backend) / Flutter test (Frontend)
-- **Additional (Upcoming Phases):** Redis (caching), Maps API (mapping & routing), Cloud Object Storage (photos/documents), Docker (containerization)
+- **Frontend:** Flutter & Dart (Cross-platform: Mobile, Web, Desktop) with Material 3
+- **Backend:** FastAPI (Python 3.10+)
+- **Database:** PostgreSQL with SQLAlchemy 2.x ORM & Alembic migrations
+- **Authentication:** JWT (PyJWT) with Argon2 password hashing & Role-Based Access Control (RBAC)
+- **Object Storage:** Supabase Storage (5 MB limit, binary magic-byte validation for JPEG, PNG, WebP)
+- **Maps & Geolocation:** OpenStreetMap (`flutter_map` + `latlong2`), Haversine distance calculations, Google Maps directions (`url_launcher`)
+- **Testing:** `pytest` (Backend - 77 tests) / `flutter test` (Frontend - 36 tests)
 
 ---
 
-## 🚀 Current Development Status
+## 🚀 Development Status & Roadmap
 
 - **Phase 1: Project Initialization & Foundation**
-  - Modular FastAPI backend & Flutter frontend structure established.
-  - Health endpoint (`GET /health`) implemented and verified.
+  - Modular FastAPI backend & Flutter frontend structure established with health check endpoint (`GET /health`).
 - **Phase 2: Database Foundation**
   - PostgreSQL database connection configured with SQLAlchemy 2.x engine and sessionmaker.
-  - Initial `User` database model created using DeclarativeBase mapped columns.
-  - Alembic migration environment initialized and migration applied for the `users` table.
+  - `User` database model created and initial Alembic migration applied.
 - **Phase 3: Authentication & Security**
-  - Argon2 password hashing and verification.
-  - User registration (`POST /auth/register`) with secure student-only public role assignment.
-  - User login (`POST /auth/login`) generating signed JWT access tokens.
-  - Current user dependency and protected profile endpoint (`GET /auth/me`).
+  - Argon2 password hashing, user registration, JWT generation, and `GET /auth/me`.
 - **Phase 4: Accommodation Database Design**
-  - Designed and implemented SQLAlchemy 2.x models: `Property`, `Room`, `Amenity`, `PropertyImage`, and `property_amenities` (association table).
-  - Configured foreign keys with cascade deletions and check constraints for financial/inventory integrity (`monthly_rent`, `security_deposit`, `available_beds`).
+  - SQLAlchemy 2.x models: `Property`, `Room`, `Amenity`, `PropertyImage`, and `property_amenities` association table with cascading deletes and financial integrity constraints.
 - **Phase 5: Property CRUD APIs**
-  - Implemented Property CRUD endpoints: `POST /properties`, `GET /properties`, `GET /properties/{id}`, `PATCH /properties/{id}`, `DELETE /properties/{id}`.
-  - Enforced strict authorization: only owners can create properties; only owning user or admin can update/delete.
-  - Public listing and detail endpoints filter for verified & available properties, with pagination and eager-loading (`selectinload`) to prevent N+1 queries.
+  - `POST /properties`, `GET /properties`, `GET /properties/{id}`, `PATCH /properties/{id}`, `DELETE /properties/{id}` with strict owner/admin RBAC.
 - **Phase 6: Search, Filtering, Sorting & Pagination**
-  - Text search query (`q`) across title, description, city, and address with case-insensitive matching (`ilike`).
-  - Accommodation filtering by `city`, `property_type`, `sharing_type`, and rent bounds (`min_rent`, `max_rent`) applied consistently to the same room via `EXISTS` subqueries to avoid duplicate records.
-  - Deterministic sorting via `sort_by` (`newest`, `rent_low_to_high`, `rent_high_to_low`) with secondary ID tie-breaker.
-  - Safe pagination with `page`, `page_size` (enforced max 50), and accurate total count calculation preserving public visibility rules (`is_available = true`, `is_verified = true`).
+  - Text search query (`q`) across title, description, city, address with `ilike`.
+  - Room-level filters (`city`, `property_type`, `sharing_type`, `min_rent`, `max_rent`) applied via `EXISTS` subqueries to prevent duplicate records.
+  - Deterministic sorting (`newest`, `rent_low_to_high`, `rent_high_to_low`) and pagination.
 - **Phase 7: Maps, Exact Property Location & Google Maps Directions**
-  - Owner exact property location selection on interactive OpenStreetMap (`flutter_map` + `latlong2`) with draggable/tappable marker and coordinate validation.
-  - Backend validation for latitude (-90 to 90) and longitude (-180 to 180), required for new properties while preserving backward compatibility with legacy listings.
-  - Haversine distance calculation and radius filtering (`latitude`, `longitude`, `radius_km`) with distance sorting (`sort_by=distance`) and returned `distance_km`.
-  - Student map exploration screen with property markers, preview cards, and navigation to property details.
-  - One-tap Google Maps directions via `url_launcher` using the official directions URL format with external app and browser fallback.
-- **Phase 8A: Supabase Storage Integration**
-  - Configured Supabase Storage credentials (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_STORAGE_BUCKET`) in backend environment and settings.
-  - Added `supabase>=2.0.0` dependency without modifying PostgreSQL database connection.
-  - Created backend storage utility (`storage.py`) enforcing 5 MB size limit, strict MIME validation (`image/jpeg`, `image/png`, `image/webp`), and server-side unique path generation (`properties/{property_id}/{uuid}.{ext}`).
-  - Linked storage operations to existing `PropertyImage` model and PostgreSQL metadata persistence.
-  - Verified with 10 focused unit tests covering file validation, path generation, mocked cloud operations, and database persistence.
-- **Phase 8B: Property Image Upload and Delete APIs**
-  - Created Alembic migration adding `storage_path` to `property_images` table with safe backward-compatible defaults.
-  - Implemented `POST /properties/{property_id}/images` accepting `multipart/form-data`, validating binary magic bytes (JPEG/PNG/WebP), enforcing 5 MB limit, uploading to Supabase, and saving metadata.
-  - Implemented `DELETE /properties/{property_id}/images/{image_id}` verifying property-image ownership and safely removing the object from Supabase and record from PostgreSQL.
-  - Implemented atomic orphan rollback: storage uploads are cleaned up if database persistence fails.
-  - Live verified upload and delete operations against the configured Supabase bucket `property-images`.
-  - Added 14 unit and integration tests covering authorization, content validation, size limits, failure cleanups, and property details serialization.
-
-
-
+  - Interactive OpenStreetMap location picker with tap-to-place markers and coordinate validation.
+  - Haversine distance calculations and radius filtering (`latitude`, `longitude`, `radius_km`).
+  - One-tap Google Maps directions via `url_launcher`.
+- **Phase 8A & 8B: Supabase Storage Integration & Image APIs**
+  - Secure backend storage utility using Supabase Storage bucket (`property-images`).
+  - Image upload (`POST /properties/{id}/images`) with magic byte validation (JPEG/PNG/WebP, 5 MB limit) and database rollback on failure.
+  - Image deletion (`DELETE /properties/{id}/images/{image_id}`) with ownership validation.
+- **Phase 8C: Flutter Image Picker & Gallery**
+  - Multi-image selection from device gallery with pre-upload thumbnail previews, per-item removal, and carousel display on property details.
+- **Phase 9: Complete StudentStay Flutter Frontend**
+  - Explore Stays Screen: Search bar, Material 3 filter bottom sheet, sorting, pagination, and property cards.
+  - Property Detail Screen: Carousel gallery, rooms breakdown, amenities chips, availability banner, and embedded mini map.
+  - Owner Dashboard: My listings (`GET /properties/my`), verification status chips (`VERIFIED` / `PENDING REVIEW`), Add Property flow, and student access protection.
+  - Profile & Account: Sign In / Create Account with role selection (Student / Owner) and session persistence via `shared_preferences`.
+- **Phase 10: End-to-End Integration & Testing**
+  - Added backend CORS middleware for Flutter Web, iOS, Android, and Desktop clients.
+  - Platform-aware base URL resolution (`resolveBaseUrl`) supporting Android emulator (`10.0.2.2:8000`), iOS/Web/Desktop (`127.0.0.1:8000`), and custom physical device LAN IPs (`--dart-define=API_BASE_URL=...`).
+  - User-friendly error message extraction from FastAPI responses.
+- **Phase 11: Final QA, Bug Fixing & Stability**
+  - Complete test suite verification (77 backend pytest tests, 36 Flutter tests, 0 analyze issues).
+  - Live end-to-end integration verification against real PostgreSQL and Supabase Storage.
 
 ---
 
@@ -92,19 +82,138 @@ StudentStay provides a discovery experience tailored specifically to student hou
 
 ```text
 StudentStay/
-├── frontend/             # Flutter client application
+├── frontend/                     # Flutter client application
 │   ├── lib/
-│   ├── test/
-│   └── pubspec.yaml
-├── backend/              # FastAPI backend service
+│   │   ├── models/               # Property, Room, Amenity, Image, User models
+│   │   ├── screens/              # ExploreStays, ExploreMap, PropertyDetail, PropertyForm, OwnerDashboard, Profile
+│   │   ├── services/             # ApiService, AuthService, DirectionsService
+│   │   └── main.dart             # Main navigation shell (4 destinations)
+│   ├── test/                     # 36 Flutter unit, widget, and E2E integration tests
+│   └── pubspec.yaml              # Dependencies (flutter_map, latlong2, shared_preferences, etc.)
+├── backend/                      # FastAPI backend service
+│   ├── alembic/                  # Database migration scripts
 │   ├── app/
-│   │   ├── core/         # Config and settings
-│   │   ├── models/       # Database models
-│   │   ├── routers/      # API endpoints & route handlers
-│   │   ├── schemas/      # Pydantic validation schemas
-│   │   ├── services/     # Business logic
-│   │   ├── tests/        # Pytest test cases
-│   │   └── main.py       # FastAPI application entrypoint
-│   └── requirements.txt  # Python package dependencies
-└── README.md             # Project documentation
+│   │   ├── core/                 # Config, database, security, dependencies
+│   │   ├── models/               # User, Property, Room, Amenity, PropertyImage
+│   │   ├── routers/              # auth, properties, admin, health
+│   │   ├── schemas/              # Pydantic validation schemas
+│   │   ├── services/             # Supabase storage utility
+│   │   ├── tests/                # 77 Pytest test cases
+│   │   └── main.py               # FastAPI entrypoint with CORS middleware
+│   ├── requirements.txt          # Python dependencies
+│   └── .env.example              # Environment variables template
+└── README.md
 ```
+
+---
+
+## ⚙️ Setup & Installation
+
+### 1. Prerequisites
+- **Python:** 3.10 or higher
+- **PostgreSQL:** 14 or higher (running locally or remotely)
+- **Flutter SDK:** 3.20 or higher
+- **Supabase Account:** Free project with a public or authenticated bucket named `property-images`
+
+---
+
+### 2. Backend Setup
+
+1. **Navigate to the backend directory and activate a virtual environment:**
+   ```bash
+   cd backend
+   python3 -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Configure environment variables:**
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` with your real settings:
+   ```env
+   DATABASE_URL=postgresql+psycopg://postgres:your_password@localhost:5432/studentstay_db
+   JWT_SECRET_KEY=your-secure-random-secret-key-at-least-32-chars
+   JWT_ALGORITHM=HS256
+   ACCESS_TOKEN_EXPIRE_MINUTES=60
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_SECRET_KEY=your-supabase-service-role-or-secret-key
+   SUPABASE_STORAGE_BUCKET=property-images
+   ```
+
+4. **Run database migrations:**
+   ```bash
+   alembic upgrade head
+   ```
+
+5. **Start the FastAPI backend server:**
+   ```bash
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+   * Interactive API docs: `http://localhost:8000/docs`
+   * Health check: `http://localhost:8000/health`
+
+---
+
+### 3. Frontend Setup
+
+1. **Navigate to the frontend directory:**
+   ```bash
+   cd frontend
+   flutter pub get
+   ```
+
+2. **Run on your target platform:**
+   * **Chrome (Web):**
+     ```bash
+     flutter run -d chrome
+     ```
+   * **macOS (Desktop):**
+     ```bash
+     flutter run -d macos
+     ```
+   * **Android Emulator:**
+     ```bash
+     flutter run -d emulator-5554
+     ```
+     *(Automatically routes to `http://10.0.2.2:8000`)*
+   * **iOS Simulator:**
+     ```bash
+     flutter run -d iPhone
+     ```
+     *(Automatically routes to `http://127.0.0.1:8000`)*
+   * **Physical Device (LAN IP):**
+     ```bash
+     flutter run --dart-define=API_BASE_URL=http://<YOUR_COMPUTER_IP>:8000
+     ```
+
+---
+
+## 🧪 Testing
+
+### Backend Tests (77 tests)
+```bash
+cd backend
+source .venv/bin/activate
+pytest -v
+```
+
+### Frontend Tests (36 tests)
+```bash
+cd frontend
+flutter analyze
+flutter test
+```
+
+---
+
+## 🔒 Security Best Practices
+- **No Secrets in Frontend:** The Flutter application contains zero database credentials, JWT secrets, or Supabase service keys.
+- **Environment Isolation:** `.env` is strictly excluded from version control via `.gitignore`.
+- **Magic Byte Validation:** All image uploads are validated by content magic bytes (not client file extensions).
+- **Atomic Operations:** Cloud storage uploads are cleaned up automatically if database insertion fails.
