@@ -21,22 +21,12 @@ class ApiService {
       const fromEnv = String.fromEnvironment('API_BASE_URL');
       if (fromEnv.isNotEmpty) {
         url = fromEnv;
-      } else if (kIsWeb) {
-        url = 'http://127.0.0.1:8000';
-      } else {
-        switch (defaultTargetPlatform) {
-          case TargetPlatform.android:
-            url = 'http://10.0.2.2:8000';
-            break;
-          case TargetPlatform.iOS:
-          case TargetPlatform.macOS:
-          case TargetPlatform.linux:
-          case TargetPlatform.windows:
-          default:
-            url = 'http://127.0.0.1:8000';
-            break;
-        }
+      }       
+      else {
+        // Deployed Production Backend
+        url = 'https://studentstay-8kkr.onrender.com';
       }
+
     }
     return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
   }
