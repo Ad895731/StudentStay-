@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import 'admin_verification_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final AuthService authService;
@@ -124,6 +125,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   Widget _buildAuthenticatedView() {
     final user = widget.authService.currentUser!;
     final isOwner = user.isOwner;
+    final isAdmin = user.isAdmin;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
@@ -168,10 +170,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                       color: isOwner ? const Color(0xFFFFF3E0) : const Color(0xFFE3F2FD),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isOwner ? Colors.orange.shade300 : Colors.blue.shade300,
+                        color: 
+                        isAdmin ? Colors.purple.shade300 
+                        :isOwner ? Colors.orange.shade300 
+                        : Colors.blue.shade300,
                       ),
                     ),
                     child: Text(
+                      isAdmin ? 'ADMINISTRATOR':
                       isOwner ? 'PROPERTY OWNER' : 'STUDENT',
                       style: TextStyle(
                         fontSize: 12,
@@ -188,6 +194,37 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           const SizedBox(height: 20),
 
           // Role Information Card
+                    // Agar user Admin hai, toh Verification Portal Button dikhayega 
+          if (isAdmin) ...[
+            const SizedBox(height: 16),
+            Card(
+              elevation: 2,
+              color: Colors.purple.shade50,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.purple.shade200),
+              ),
+              child: ListTile(
+                leading: const Icon(Icons.admin_panel_settings, color: Colors.purple, size: 32),
+                title: const Text(
+                  'Admin Verification Portal',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: const Text('Review and verify pending property listings'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.purple),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AdminVerificationScreen(
+                        token: widget.authService.token!,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+
           Card(
             elevation: 1,
             color: Colors.grey.shade50,

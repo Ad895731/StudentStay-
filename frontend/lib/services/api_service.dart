@@ -21,18 +21,21 @@ class ApiService {
       const fromEnv = String.fromEnvironment('API_BASE_URL');
       if (fromEnv.isNotEmpty) {
         url = fromEnv;
-      }       
-      else {
+      } else {
         // Deployed Production Backend
+        // yaha maine delpoy kara hai render pr usee lga dia ab agr mujhe local me chalna hoga to mai
+        // --dart-define=API_BASE_URL=http://127.0.0.1:8000` use krega local machine pr chalane ke liye
         url = 'https://studentstay-8kkr.onrender.com';
       }
-
     }
     return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
   }
 
   /// Extracts user-friendly error messages from FastAPI responses (handling both string details and validation error lists).
-  static String extractErrorMessage(http.Response response, {String fallback = 'An error occurred'}) {
+  static String extractErrorMessage(
+    http.Response response, {
+    String fallback = 'An error occurred',
+  }) {
     try {
       final body = jsonDecode(response.body);
       if (body is Map && body['detail'] != null) {
@@ -51,11 +54,9 @@ class ApiService {
     return fallback;
   }
 
-  ApiService({
-    String? baseUrl,
-    http.Client? client,
-  })  : baseUrl = resolveBaseUrl(baseUrl),
-        _client = client ?? http.Client();
+  ApiService({String? baseUrl, http.Client? client})
+    : baseUrl = resolveBaseUrl(baseUrl),
+      _client = client ?? http.Client();
 
   /// Authenticates user and returns JWT access token.
   Future<String> login({
@@ -73,7 +74,9 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return data['access_token'] as String;
     } else {
-      throw Exception(extractErrorMessage(response, fallback: 'Invalid email or password'));
+      throw Exception(
+        extractErrorMessage(response, fallback: 'Invalid email or password'),
+      );
     }
   }
 
@@ -100,7 +103,12 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return User.fromJson(data);
     } else {
-      throw Exception(extractErrorMessage(response, fallback: 'Registration failed (${response.statusCode})'));
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Registration failed (${response.statusCode})',
+        ),
+      );
     }
   }
 
@@ -157,13 +165,17 @@ class ApiService {
     if (radiusKm != null) params['radius_km'] = radiusKm.toString();
     if (sortBy != null) params['sort_by'] = sortBy;
 
-    final uri = Uri.parse('$baseUrl/properties').replace(queryParameters: params);
+    final uri = Uri.parse(
+      '$baseUrl/properties',
+    ).replace(queryParameters: params);
     final response = await _client.get(uri);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final rawItems = data['items'] as List<dynamic>? ?? [];
-      final items = rawItems.map((e) => Property.fromJson(e as Map<String, dynamic>)).toList();
+      final items = rawItems
+          .map((e) => Property.fromJson(e as Map<String, dynamic>))
+          .toList();
       return PropertyListResult(
         items: items,
         page: data['page'] as int? ?? page,
@@ -171,7 +183,9 @@ class ApiService {
         total: data['total'] as int? ?? items.length,
       );
     } else {
-      throw Exception('Failed to load properties: ${response.statusCode} ${response.body}');
+      throw Exception(
+        'Failed to load properties: ${response.statusCode} ${response.body}',
+      );
     }
   }
 
@@ -215,11 +229,15 @@ class ApiService {
 
     if (response.statusCode == 200) {
       final list = jsonDecode(response.body) as List<dynamic>;
-      return list.map((e) => Property.fromJson(e as Map<String, dynamic>)).toList();
+      return list
+          .map((e) => Property.fromJson(e as Map<String, dynamic>))
+          .toList();
     } else if (response.statusCode == 401 || response.statusCode == 403) {
       throw Exception('Not authorized to access owner dashboard.');
     } else {
-      throw Exception('Failed to load owner properties: ${response.statusCode}');
+      throw Exception(
+        'Failed to load owner properties: ${response.statusCode}',
+      );
     }
   }
 
@@ -252,7 +270,9 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return Property.fromJson(data);
     } else {
-      throw Exception('Failed to load property details: ${response.statusCode}');
+      throw Exception(
+        'Failed to load property details: ${response.statusCode}',
+      );
     }
   }
 
@@ -275,7 +295,12 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return Property.fromJson(data);
     } else {
-      throw Exception(extractErrorMessage(response, fallback: 'Failed to create property (${response.statusCode})'));
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to create property (${response.statusCode})',
+        ),
+      );
     }
   }
 
@@ -299,7 +324,12 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return Property.fromJson(data);
     } else {
-      throw Exception(extractErrorMessage(response, fallback: 'Failed to update property (${response.statusCode})'));
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to update property (${response.statusCode})',
+        ),
+      );
     }
   }
 
@@ -348,9 +378,16 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return PropertyImage.fromJson(data);
     } else if (response.statusCode == 401 || response.statusCode == 403) {
-      throw Exception('Authentication failed or not authorized to upload images.');
+      throw Exception(
+        'Authentication failed or not authorized to upload images.',
+      );
     } else {
-      throw Exception(extractErrorMessage(response, fallback: 'Failed to upload image (${response.statusCode})'));
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to upload image (${response.statusCode})',
+        ),
+      );
     }
   }
 
@@ -363,19 +400,72 @@ class ApiService {
     final uri = Uri.parse('$baseUrl/properties/$propertyId/images/$imageId');
     final response = await _client.delete(
       uri,
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
+      headers: {'Authorization': 'Bearer $token'},
     );
 
     if (response.statusCode == 204) {
       return;
     } else if (response.statusCode == 401 || response.statusCode == 403) {
-      throw Exception('Authentication failed or not authorized to delete this image.');
+      throw Exception(
+        'Authentication failed or not authorized to delete this image.',
+      );
     } else if (response.statusCode == 404) {
       throw Exception('Image or property not found.');
     } else {
-      throw Exception(extractErrorMessage(response, fallback: 'Failed to delete image (${response.statusCode})'));
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to delete image (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  // admin related api calls like get pending property , verify property
+  Future<List<Property>> fetchPendingProperties({required String token}) async {
+    final uri = Uri.parse('$baseUrl/admin/properties/pending');
+    final response = await _client.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final list = data['pending_properties'] as List;
+      return list
+          .map((e) => Property.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback:
+              'Failed to load pending properties (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  Future<bool> verifyProperty({
+    required int propertyId,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/properties/$propertyId/verify');
+    final response = await _client.patch(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      return true;
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to verify property (${response.statusCode})',
+        ),
+      );
     }
   }
 }
