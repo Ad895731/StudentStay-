@@ -245,7 +245,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      // 1. View Details Button
+                      // Property ki details (photos, map, description) check karne ke liye button
                       OutlinedButton.icon(
                         icon: const Icon(Icons.visibility_outlined, size: 16),
                         label: const Text('View Details'),
@@ -261,7 +261,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen> {
                         },
                       ),
                       const SizedBox(width: 8),
-                      // 2. Approve & Verify Button (already present)
+                      // Listing ko verify aur approve karne ka action button
                       ElevatedButton.icon(
                         icon: isVerifying
                             ? const SizedBox(

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../models/property.dart';
@@ -10,9 +9,8 @@ class ApiService {
   final http.Client _client;
 
   /// Resolves the appropriate API base URL across platforms:
-  /// - `API_BASE_URL` from --dart-define if supplied (e.g. physical device LAN IP)
-  /// - Android emulator: `http://10.0.2.2:8000`
-  /// - iOS simulator / Web / Desktop: `http://127.0.0.1:8000`
+  /// - `API_BASE_URL` from --dart-define if supplied (e.g. physical device LAN IP or local testing)
+  /// - Default production fallback: Render cloud backend
   static String resolveBaseUrl([String? explicitUrl]) {
     String url;
     if (explicitUrl != null && explicitUrl.isNotEmpty) {

@@ -193,8 +193,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           ),
           const SizedBox(height: 20),
 
-          // Role Information Card
-                    // Agar user Admin hai, toh Verification Portal Button dikhayega 
+          // Agar logged-in user admin hai toh verification portal ka shortcut card dikhaya hai
           if (isAdmin) ...[
             const SizedBox(height: 16),
             Card(

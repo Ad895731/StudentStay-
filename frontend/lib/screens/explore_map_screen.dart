@@ -22,6 +22,9 @@ class ExploreMapScreen extends StatefulWidget {
 class _ExploreMapScreenState extends State<ExploreMapScreen> {
   late final ApiService _apiService;
   final MapController _mapController = MapController();
+  final TextEditingController _searchController = TextEditingController();
+  String _selectedPropertyType = 'all';
+
 
   List<Property> _properties = [];
   Property? _selectedProperty;
@@ -46,22 +49,46 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     }
   }
 
-  Future<void> _loadProperties() async {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+
+  
+  Future<void> _loadProperties({String? query, String? propertyType}) async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final properties = await _apiService.fetchProperties(pageSize: 50);
+      final typeFilter = (propertyType ?? _selectedPropertyType) == 'all'
+          ? null
+          : (propertyType ?? _selectedPropertyType);
+
+      final properties = await _apiService.fetchProperties(
+        query: query ?? _searchController.text.trim(),
+        propertyType: typeFilter,
+        pageSize: 50,
+      );
+
       if (mounted) {
         setState(() {
-          // Display markers only for properties that are verified, available, and have valid coordinates
           _properties = properties
               .where((p) => p.isVerified && p.isAvailable && p.hasValidCoordinates)
               .toList();
+
           if (_properties.isNotEmpty) {
             _selectedProperty = _properties.first;
+            // Search result aane par map camera ko pehli matching stay par move kiya
+            _mapController.move(
+              LatLng(_properties.first.latitude!, _properties.first.longitude!),
+              13.0,
+            );
+          } else {
+            _selectedProperty = null;
           }
           _isLoading = false;
         });
@@ -69,7 +96,7 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
           _isLoading = false;
         });
       }
@@ -117,6 +144,7 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
       ),
       body: Stack(
         children: [
+          // Base OpenStreetMap Layer & Interactive Markers
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -130,9 +158,7 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
               ),
               const RichAttributionWidget(
                 attributions: [
-                  TextSourceAttribution(
-                    '© OpenStreetMap contributors',
-                  ),
+                  TextSourceAttribution('© OpenStreetMap contributors'),
                 ],
               ),
               MarkerLayer(
@@ -155,12 +181,17 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                   );
                 }).toList(),
               ),
+
             ],
           ),
 
+          // Map ke upar floating search bar aur category filter chips render kiya hai
+          _buildFloatingSearchBar(),
+
+          // Search request chalte waqt loading indicator show kiya hai
           if (_isLoading)
             Positioned(
-              top: 16,
+              top: 110,
               left: 16,
               right: 16,
               child: Card(
@@ -175,7 +206,7 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                       SizedBox(width: 12),
-                      Text('Loading verified properties...'),
+                      Text('Searching stays on map...'),
                     ],
                   ),
                 ),
@@ -353,4 +384,76 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
       ),
     );
   }
+
+    Widget _buildFloatingSearchBar() {
+    return Positioned(
+      top: 12,
+      left: 16,
+      right: 16,
+      child: Column(
+        children: [
+          // 1. Search TextField Card
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            child: TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (val) => _loadProperties(),
+              decoration: InputDecoration(
+                hintText: 'Search city, area, stay name...',
+                prefixIcon: const Icon(Icons.search, color: Colors.blue),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          _loadProperties();
+                        },
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.arrow_forward, color: Colors.blue),
+                        onPressed: () => _loadProperties(),
+                      ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // 2. Filter Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ['all', 'pg', 'hostel', 'flat', 'room'].map((type) {
+                final isSelected = _selectedPropertyType == type;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: FilterChip(
+                    label: Text(type.toUpperCase()),
+                    selected: isSelected,
+                    selectedColor: Colors.blue.shade100,
+                    checkmarkColor: Colors.blue.shade800,
+                    labelStyle: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected ? Colors.blue.shade900 : Colors.black87,
+                    ),
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedPropertyType = type;
+                      });
+                      _loadProperties(propertyType: type);
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 }
