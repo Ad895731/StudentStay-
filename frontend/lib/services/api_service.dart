@@ -466,4 +466,98 @@ class ApiService {
       );
     }
   }
+  // Sabhi system amenities (Wi-Fi, AC, Food, etc.) fetch karne ka method
+  Future<List<Amenity>> fetchAmenities() async {
+    final uri = Uri.parse('$baseUrl/properties/amenities/all');
+    final response = await _client.get(uri);
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => Amenity.fromJson(json as Map<String, dynamic>)).toList();
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to fetch amenities (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  // Owner property me room configuration add karega (Single, Double, Rent, Beds)
+  Future<Room> addRoom({
+    required int propertyId,
+    required Map<String, dynamic> roomData,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/properties/$propertyId/rooms');
+    final response = await _client.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(roomData),
+    );
+    if (response.statusCode == 201) {
+      return Room.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to add room (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  // Owner property se kisi room configuration ko delete kar sakega
+  Future<void> deleteRoom({
+    required int propertyId,
+    required int roomId,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/properties/$propertyId/rooms/$roomId');
+    final response = await _client.delete(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode != 204) {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to delete room (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  // Selected amenity IDs ko property ke sath link/sync karega
+  Future<List<Amenity>> updatePropertyAmenities({
+    required int propertyId,
+    required List<int> amenityIds,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/properties/$propertyId/amenities');
+    final response = await _client.put(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'amenity_ids': amenityIds}),
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => Amenity.fromJson(json as Map<String, dynamic>)).toList();
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to update amenities (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+
 }

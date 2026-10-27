@@ -539,6 +539,8 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                           options: MapOptions(
                             initialCenter: propertyLocation,
                             initialZoom: 15.0,
+                            minZoom: 4.5,
+                            maxZoom: 18.5,
                             interactionOptions: const InteractionOptions(
                               flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
                             ),

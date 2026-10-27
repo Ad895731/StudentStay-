@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/explore_map_screen.dart';
 import 'screens/explore_stays_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/owner_dashboard_screen.dart';
 import 'screens/profile_screen.dart';
 import 'services/api_service.dart';
@@ -14,11 +15,13 @@ void main() {
 class StudentStayApp extends StatefulWidget {
   final ApiService? apiService;
   final AuthService? authService;
+  final bool initialGuestMode;
 
   const StudentStayApp({
     super.key,
     this.apiService,
     this.authService,
+    this.initialGuestMode = false,
   });
 
   @override
@@ -28,10 +31,12 @@ class StudentStayApp extends StatefulWidget {
 class _StudentStayAppState extends State<StudentStayApp> {
   late final ApiService _apiService;
   late final AuthService _authService;
+  late bool _guestMode;
 
   @override
   void initState() {
     super.initState();
+    _guestMode = widget.initialGuestMode;
     _apiService = widget.apiService ?? ApiService();
     _authService = widget.authService ?? AuthService(apiService: _apiService);
     _authService.restoreSession();
@@ -53,9 +58,34 @@ class _StudentStayAppState extends State<StudentStayApp> {
           elevation: 1,
         ),
       ),
-      home: MainNavigationShell(
-        apiService: _apiService,
-        authService: _authService,
+      home: ListenableBuilder(
+        listenable: _authService,
+        builder: (context, _) {
+          if (_authService.isLoading) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          // Pehle Student/User Login karega, tabhi main app access hoga
+          if (!_authService.isAuthenticated && !_guestMode) {
+            return LoginScreen(
+              authService: _authService,
+              onContinueAsGuest: () {
+                setState(() {
+                  _guestMode = true;
+                });
+              },
+            );
+          }
+
+          return MainNavigationShell(
+            apiService: _apiService,
+            authService: _authService,
+          );
+        },
       ),
     );
   }

@@ -8,14 +8,22 @@ from app.core.dependencies import get_current_user, require_role
 from app.models.property import Property, PropertyImage
 from app.models.room import Room
 from app.models.user import User
+from app.models.amenity import Amenity
+
+
 from app.schemas.property import (
+    AmenityResponse,
+    PropertyAmenitiesUpdate,
     PropertyCreate,
     PropertyDetailResponse,
     PropertyImageResponse,
     PropertyListResponse,
     PropertyResponse,
     PropertyUpdate,
+    RoomCreate,
+    RoomResponse,
 )
+
 from app.services.storage import (
     delete_property_image,
     save_property_image_record,
@@ -252,6 +260,98 @@ def get_my_properties(
         .order_by(Property.created_at.desc())
     )
     return db.scalars(stmt).all()
+
+@router.get("/amenities/all", response_model=list[AmenityResponse])
+def get_all_amenities(db: Session = Depends(get_db)):
+    """Fetch all available amenities. Seeds missing standard amenities if needed."""
+    default_names = [
+        "Wi-Fi", "AC", "Power Backup", "Food / Mess Included",
+        "Laundry / Washing Machine", "Attached Washroom",
+        "RO Drinking Water", "CCTV Security", "Refrigerator", "Housekeeping"
+    ]
+    existing_names = {a.name for a in db.scalars(select(Amenity)).all()}
+    missing = [Amenity(name=name) for name in default_names if name not in existing_names]
+    if missing:
+        db.add_all(missing)
+        db.commit()
+    return db.scalars(select(Amenity).order_by(Amenity.id)).all()
+
+@router.post("/{property_id}/rooms", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
+def add_room_to_property(
+    property_id: int,
+    room_in: RoomCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Add a room configuration to an existing property. Owner/Admin only."""
+    prop = db.scalar(select(Property).where(Property.id == property_id))
+    if not prop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    if prop.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to modify this property")
+
+    new_room = Room(
+        property_id=prop.id,
+        sharing_type=room_in.sharing_type,
+        monthly_rent=room_in.monthly_rent,
+        available_beds=room_in.available_beds,
+    )
+    db.add(new_room)
+    db.commit()
+    db.refresh(new_room)
+    return new_room
+
+@router.delete("/{property_id}/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_room_from_property(
+    property_id: int,
+    room_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a room configuration from a property. Owner/Admin only."""
+    prop = db.scalar(select(Property).where(Property.id == property_id))
+    if not prop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    if prop.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to modify this property")
+
+    room = db.scalar(select(Room).where(Room.id == room_id, Room.property_id == property_id))
+    if not room:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+
+    db.delete(room)
+    db.commit()
+
+@router.put("/{property_id}/amenities", response_model=list[AmenityResponse])
+def update_property_amenities(
+    property_id: int,
+    payload: PropertyAmenitiesUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Link selected amenities to a property. Owner/Admin only."""
+    stmt = (
+        select(Property)
+        .options(selectinload(Property.amenities))
+        .where(Property.id == property_id)
+    )
+    prop = db.scalar(stmt)
+    if not prop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    if prop.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to modify this property")
+
+    selected_amenities = db.scalars(
+        select(Amenity).where(Amenity.id.in_(payload.amenity_ids))
+    ).all()
+
+    prop.amenities = list(selected_amenities)
+    db.commit()
+    db.refresh(prop)
+    return prop.amenities
 
 
 @router.get("/{property_id}", response_model=PropertyDetailResponse)

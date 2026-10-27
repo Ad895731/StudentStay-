@@ -12,7 +12,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('StudentStay app launches and renders navigation destinations',
+  testWidgets('StudentStay app launches with LoginScreen and navigates into shell',
       (WidgetTester tester) async {
     final mockClient = MockClient((request) async {
       if (request.url.path.contains('/properties')) {
@@ -40,6 +40,15 @@ void main() {
         authService: authService,
       ),
     );
+    await tester.pumpAndSettle();
+
+    // 1. By default, unauthenticated user sees LoginScreen
+    expect(find.text('StudentStay'), findsWidgets);
+    expect(find.text('Sign In'), findsWidgets);
+    expect(find.text('Create Account'), findsWidgets);
+
+    // 2. Continuing as guest (or logging in) opens Main Navigation destinations
+    await tester.tap(find.text('Explore as Guest without login'));
     await tester.pumpAndSettle();
 
     expect(find.text('Explore'), findsWidgets);

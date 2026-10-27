@@ -288,6 +288,7 @@ void main() {
       expect(find.text('Select Photos from Gallery'), findsOneWidget);
 
       // Tap to pick images
+      await tester.ensureVisible(find.byKey(const Key('pick_images_button')));
       await tester.tap(find.byKey(const Key('pick_images_button')));
       await tester.pumpAndSettle();
 
@@ -326,6 +327,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(find.byKey(const Key('pick_images_button')));
       await tester.tap(find.byKey(const Key('pick_images_button')));
       await tester.pumpAndSettle();
 

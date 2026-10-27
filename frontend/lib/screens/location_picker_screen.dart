@@ -74,6 +74,17 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             options: MapOptions(
               initialCenter: center,
               initialZoom: 14.0,
+              minZoom: 4.5,
+              maxZoom: 18.5,
+              cameraConstraint: CameraConstraint.contain(
+                bounds: LatLngBounds(
+                  const LatLng(-85.0511, -180.0),
+                  const LatLng(85.0511, 180.0),
+                ),
+              ),
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              ),
               onTap: _onMapTapped,
             ),
             children: [

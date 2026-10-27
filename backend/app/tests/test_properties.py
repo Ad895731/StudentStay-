@@ -504,3 +504,98 @@ def test_delete_nonexistent_property_returns_404():
         headers={"Authorization": f"Bearer {owner_token}"},
     )
     assert response.status_code == 404
+
+
+# 6. ROOMS & AMENITIES ENDPOINTS TESTS
+
+
+def test_get_all_amenities_seeds_and_returns():
+    response = client.get("/properties/amenities/all")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) >= 5
+    names = [a["name"] for a in data]
+    assert "Wi-Fi" in names
+    assert "AC" in names
+
+
+def test_owner_can_add_and_delete_room():
+    owner, token = create_test_user("owner")
+    prop = create_test_property(owner.id)
+
+    # 1. Add room
+    room_payload = {
+        "sharing_type": "double",
+        "monthly_rent": "6500.00",
+        "available_beds": 2,
+    }
+    response = client.post(
+        f"/properties/{prop.id}/rooms",
+        json=room_payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    room_data = response.json()
+    assert room_data["sharing_type"] == "double"
+    assert float(room_data["monthly_rent"]) == 6500.0
+    assert room_data["available_beds"] == 2
+    room_id = room_data["id"]
+
+    # 2. Check property detail reflects room
+    detail_res = client.get(f"/properties/{prop.id}")
+    assert detail_res.status_code == 200
+    detail_data = detail_res.json()
+    assert len(detail_data["rooms"]) == 1
+    assert detail_data["rooms"][0]["id"] == room_id
+
+    # 3. Delete room
+    del_res = client.delete(
+        f"/properties/{prop.id}/rooms/{room_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert del_res.status_code == 204
+
+    # 4. Verify room is deleted from property
+    detail_res2 = client.get(f"/properties/{prop.id}")
+    assert len(detail_res2.json()["rooms"]) == 0
+
+
+def test_non_owner_cannot_add_room():
+    owner, _ = create_test_user("owner")
+    other_owner, other_token = create_test_user("owner")
+    prop = create_test_property(owner.id)
+
+    response = client.post(
+        f"/properties/{prop.id}/rooms",
+        json={"sharing_type": "single", "monthly_rent": "8000.00", "available_beds": 1},
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    assert response.status_code == 403
+
+
+def test_owner_can_update_property_amenities():
+    owner, token = create_test_user("owner")
+    prop = create_test_property(owner.id)
+
+    # Fetch available amenities
+    amenities_res = client.get("/properties/amenities/all")
+    all_amenities = amenities_res.json()
+    selected_ids = [all_amenities[0]["id"], all_amenities[1]["id"]]
+
+    # Update amenities
+    put_res = client.put(
+        f"/properties/{prop.id}/amenities",
+        json={"amenity_ids": selected_ids},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert put_res.status_code == 200
+    updated_amenities = put_res.json()
+    assert len(updated_amenities) == 2
+    updated_ids = [a["id"] for a in updated_amenities]
+    assert set(updated_ids) == set(selected_ids)
+
+    # Detail view has amenities
+    detail_res = client.get(f"/properties/{prop.id}")
+    assert len(detail_res.json()["amenities"]) == 2
+

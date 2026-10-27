@@ -90,3 +90,17 @@ class PropertyListResponse(BaseModel):
     page: int
     page_size: int
     total: int
+
+
+class RoomCreate(BaseModel):
+    sharing_type: str = Field(..., min_length=1, max_length=50) # e.g. "single", "double", "triple"
+    monthly_rent: Decimal = Field(..., ge=Decimal("0.00"))
+    available_beds: int = Field(..., ge=0)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PropertyAmenitiesUpdate(BaseModel):
+    amenity_ids: list[int]
+
+    model_config = ConfigDict(extra="forbid")

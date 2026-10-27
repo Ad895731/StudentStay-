@@ -150,6 +150,17 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
             options: MapOptions(
               initialCenter: center,
               initialZoom: 13.0,
+              minZoom: 4.5,
+              maxZoom: 18.5,
+              cameraConstraint: CameraConstraint.contain(
+                bounds: LatLngBounds(
+                  const LatLng(-85.0511, -180.0),
+                  const LatLng(85.0511, 180.0),
+                ),
+              ),
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              ),
             ),
             children: [
               TileLayer(
@@ -162,7 +173,15 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                 ],
               ),
               MarkerLayer(
-                markers: _properties.map((prop) {
+                markers: _properties
+                    .where((prop) =>
+                        prop.latitude != null &&
+                        prop.longitude != null &&
+                        prop.latitude! >= -85.0 &&
+                        prop.latitude! <= 85.0 &&
+                        prop.longitude! >= -180.0 &&
+                        prop.longitude! <= 180.0)
+                    .map((prop) {
                   final isSelected = _selectedProperty?.id == prop.id;
                   return Marker(
                     key: Key('property_marker_${prop.id}'),
@@ -181,7 +200,6 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                   );
                 }).toList(),
               ),
-
             ],
           ),
 
@@ -237,6 +255,27 @@ class _ExploreMapScreenState extends State<ExploreMapScreen> {
                 ),
               ),
             ),
+
+          // Recenter / Location Button
+          Positioned(
+            right: 16,
+            bottom: _selectedProperty != null ? 175 : 20,
+            child: FloatingActionButton.small(
+              key: const Key('recenter_map_button'),
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.blue.shade700,
+              tooltip: 'Center on Stays',
+              onPressed: () {
+                final target = (_selectedProperty != null && _selectedProperty!.hasValidCoordinates)
+                    ? LatLng(_selectedProperty!.latitude!, _selectedProperty!.longitude!)
+                    : (_properties.isNotEmpty && _properties.first.hasValidCoordinates
+                        ? LatLng(_properties.first.latitude!, _properties.first.longitude!)
+                        : _defaultCenter);
+                _mapController.move(target, 13.0);
+              },
+              child: const Icon(Icons.my_location),
+            ),
+          ),
 
           // Property Preview Card
           Positioned(
