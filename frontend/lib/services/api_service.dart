@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import '../models/inquiry.dart';
 import '../models/property.dart';
 import '../models/user.dart';
 
@@ -622,4 +623,96 @@ class ApiService {
     return false;
   }
 
+  // 4. Student creates an inquiry / schedules a visit
+  Future<InquiryItem> createInquiry({
+    required Map<String, dynamic> inquiryData,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/inquiries');
+    final response = await _client.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(inquiryData),
+    );
+    if (response.statusCode == 201) {
+      return InquiryItem.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to submit inquiry (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  // 5. Student views inquiries they sent
+  Future<List<InquiryItem>> fetchMySentInquiries({required String token}) async {
+    final uri = Uri.parse('$baseUrl/inquiries/my-sent');
+    final response = await _client.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => InquiryItem.fromJson(json as Map<String, dynamic>)).toList();
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to fetch sent inquiries (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  // 6. Owner views inquiries received for their properties
+  Future<List<InquiryItem>> fetchMyReceivedInquiries({required String token}) async {
+    final uri = Uri.parse('$baseUrl/inquiries/my-received');
+    final response = await _client.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => InquiryItem.fromJson(json as Map<String, dynamic>)).toList();
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to fetch received inquiries (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  // 7. Owner updates inquiry status (confirmed, rejected, completed)
+  Future<InquiryItem> updateInquiryStatus({
+    required int inquiryId,
+    required String status,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/inquiries/$inquiryId/status');
+    final response = await _client.patch(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'status': status}),
+    );
+    if (response.statusCode == 200) {
+      return InquiryItem.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to update inquiry status (${response.statusCode})',
+        ),
+      );
+    }
+  }
 }

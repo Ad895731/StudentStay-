@@ -4,9 +4,10 @@ from app.core.config import settings
 from app.routers import (
     admin_router,
     auth_router,
-    health_router,
-    properties_router,
     favorites_router,
+    health_router,
+    inquiries_router,
+    properties_router,
 )
 
 app = FastAPI(
@@ -30,8 +31,7 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(properties_router)
 app.include_router(favorites_router)
-
-
+app.include_router(inquiries_router)
 
 
 @app.get("/")

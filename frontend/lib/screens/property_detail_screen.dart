@@ -98,6 +98,225 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     }
   }
 
+  void _openScheduleVisitDialog() {
+    final token = widget.ownerToken;
+    if (token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to schedule a visit or send an inquiry.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
+    String sharingPref = 'any';
+    final phoneController = TextEditingController();
+    final messageController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_month, color: Colors.blue.shade700),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Schedule a Stay Visit',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Choose when you want to visit and explore this property in person.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Privacy Notice
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade100),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.shield_outlined, color: Colors.blue.shade700, size: 20),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Privacy Guaranteed: Your phone number is masked until the owner confirms your visit schedule.',
+                            style: TextStyle(fontSize: 11, color: Colors.blue),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Preferred Visit Date Picker
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.event_available, color: Colors.blue),
+                    title: const Text('Visit Date', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                      '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                      style: const TextStyle(fontSize: 15, color: Colors.black87),
+                    ),
+                    trailing: OutlinedButton(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(const Duration(days: 30)),
+                        );
+                        if (picked != null) {
+                          setModalState(() => selectedDate = picked);
+                        }
+                      },
+                      child: const Text('Change Date'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Sharing Preference
+                  DropdownButtonFormField<String>(
+                    initialValue: sharingPref,
+                    decoration: const InputDecoration(
+                      labelText: 'Sharing Preference',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'any', child: Text('Any Sharing Available')),
+                      DropdownMenuItem(value: 'single', child: Text('Single Room')),
+                      DropdownMenuItem(value: 'double', child: Text('Double Sharing')),
+                      DropdownMenuItem(value: 'triple', child: Text('Triple Sharing')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setModalState(() => sharingPref = val);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Contact Phone Input
+                  TextFormField(
+                    key: const Key('inquiry_phone_input'),
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Contact Phone Number *',
+                      hintText: 'e.g. +91 9876543210',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) =>
+                        (v == null || v.trim().length < 8) ? 'Enter a valid phone number' : null,
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Optional Message
+                  TextFormField(
+                    key: const Key('inquiry_message_input'),
+                    controller: messageController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Message for Owner (Optional)',
+                      hintText: 'e.g. Coming with my parents around 11 AM...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Submit CTA
+                  ElevatedButton(
+                    key: const Key('submit_inquiry_button'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            if (!formKey.currentState!.validate()) return;
+                            setModalState(() => isSubmitting = true);
+
+                            final messenger = ScaffoldMessenger.of(context);
+                            final nav = Navigator.of(ctx);
+
+                            try {
+                              await _apiService.createInquiry(
+                                inquiryData: {
+                                  'property_id': _property.id,
+                                  'visit_date': selectedDate.toIso8601String(),
+                                  'sharing_preference': sharingPref,
+                                  'contact_phone': phoneController.text.trim(),
+                                  if (messageController.text.trim().isNotEmpty)
+                                    'message': messageController.text.trim(),
+                                },
+                                token: token,
+                              );
+                              if (mounted) {
+                                nav.pop();
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Visit request sent to the owner successfully!'),
+                                    backgroundColor: Colors.green,
+                                    duration: Duration(seconds: 3),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              setModalState(() => isSubmitting = false);
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+                              );
+                            }
+                          },
+                    child: isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Send Visit Request',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _fetchFullDetails() async {
     try {
       final full = await _apiService.fetchPropertyDetail(_property.id);
@@ -659,6 +878,26 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
               ),
             ),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: ElevatedButton.icon(
+            key: const Key('schedule_visit_button'),
+            icon: const Icon(Icons.calendar_today, size: 20),
+            label: const Text(
+              'Schedule a Visit / Inquire',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: _openScheduleVisitDialog,
+          ),
         ),
       ),
     );

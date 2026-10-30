@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/property.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import 'owner_inquiries_screen.dart';
 import 'property_detail_screen.dart';
 import 'property_form_screen.dart';
 
@@ -357,6 +358,21 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       appBar: AppBar(
         title: const Text('My Property Listings'),
         actions: [
+          IconButton(
+            key: const Key('owner_inquiries_button'),
+            icon: const Icon(Icons.mark_email_unread_outlined),
+            tooltip: 'Student Inquiries',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => OwnerInquiriesScreen(
+                    apiService: _apiService,
+                    authService: widget.authService!,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh Listings',
