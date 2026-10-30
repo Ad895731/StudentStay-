@@ -3,6 +3,7 @@ import '../models/property.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'property_detail_screen.dart';
+import 'saved_stays_screen.dart';
 
 class ExploreStaysScreen extends StatefulWidget {
   final ApiService? apiService;
@@ -503,6 +504,21 @@ class _ExploreStaysScreenState extends State<ExploreStaysScreen> {
       appBar: AppBar(
         title: const Text('Discover Student Stay'),
         actions: [
+          IconButton(
+            key: const Key('saved_stays_button'),
+            icon: const Icon(Icons.favorite_border, color: Colors.red),
+            tooltip: 'Saved Stays',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SavedStaysScreen(
+                    apiService: _apiService,
+                    authService: widget.authService ?? AuthService(apiService: _apiService),
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             key: const Key('filter_button'),
             icon: const Icon(Icons.tune),

@@ -26,6 +26,8 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   late final ApiService _apiService;
   int _currentImageIndex = 0;
   bool _isDeletingImage = false;
+  bool _isFavorite = false;
+  bool _isLoadingFavorite = false;
 
   @override
   void initState() {
@@ -34,6 +36,65 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     _apiService = widget.apiService ?? ApiService();
     if (_property.rooms.isEmpty && _property.amenities.isEmpty) {
       _fetchFullDetails();
+    }
+    _checkFavoriteStatus();
+  }
+
+  Future<void> _checkFavoriteStatus() async {
+    final token = widget.ownerToken;
+    if (token == null) return;
+    try {
+      final isFav = await _apiService.checkIsFavorite(
+        propertyId: _property.id,
+        token: token,
+      );
+      if (mounted) {
+        setState(() => _isFavorite = isFav);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _toggleFavorite() async {
+    final token = widget.ownerToken;
+    if (token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to save this stay to your favorites.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoadingFavorite = true);
+    try {
+      final newStatus = await _apiService.toggleFavorite(
+        propertyId: _property.id,
+        token: token,
+      );
+      if (mounted) {
+        setState(() {
+          _isFavorite = newStatus;
+          _isLoadingFavorite = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              newStatus
+                  ? 'Saved to favorites!'
+                  : 'Removed from favorites',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingFavorite = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -285,6 +346,23 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_property.title),
+        actions: [
+          IconButton(
+            key: const Key('favorite_toggle_button'),
+            icon: _isLoadingFavorite
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    _isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: _isFavorite ? Colors.red : null,
+                  ),
+            tooltip: _isFavorite ? 'Remove from Saved' : 'Save to Favorites',
+            onPressed: _isLoadingFavorite ? null : _toggleFavorite,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(

@@ -94,3 +94,8 @@ coverage/
 # Personal notes & scratchpads
 my folder/
 *.txt
+*PLAYBOOK*.md
+*INTERVIEW*.md
+STUDENTSTAY_INTERNAL_PLAYBOOK.md
+STUDENTSTAY_FOUNDER_AND_INTERVIEW_PLAYBOOK.md
+private/

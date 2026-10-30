@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'admin_verification_screen.dart';
+import 'saved_stays_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final AuthService authService;
@@ -192,6 +194,37 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             ),
           ),
           const SizedBox(height: 20),
+
+          // Saved Stays Action Card
+          Card(
+            key: const Key('profile_saved_stays_card'),
+            elevation: 2,
+            color: Colors.red.shade50,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.red.shade200),
+            ),
+            child: ListTile(
+              leading: const Icon(Icons.favorite, color: Colors.red, size: 28),
+              title: const Text(
+                'My Saved Stays',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: const Text('View your shortlisted student accommodations'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.red),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SavedStaysScreen(
+                      apiService: ApiService(),
+                      authService: widget.authService,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
 
           // Agar logged-in user admin hai toh verification portal ka shortcut card dikhaya hai
           if (isAdmin) ...[

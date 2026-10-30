@@ -7,6 +7,7 @@ import 'screens/profile_screen.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
 
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const StudentStayApp());
@@ -119,7 +120,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
-    final screens = [
+        final screens = [
       ExploreStaysScreen(
         apiService: _apiService,
         authService: _authService,
@@ -149,7 +150,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             _currentIndex = index;
           });
         },
-        destinations: const [
+                destinations: const [
           NavigationDestination(
             key: Key('nav_explore_stays'),
             icon: Icon(Icons.travel_explore_outlined),
@@ -175,7 +176,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             label: 'Account',
           ),
         ],
-      ),
+        ),
     );
   }
 }

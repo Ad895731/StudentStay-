@@ -559,5 +559,67 @@ class ApiService {
     }
   }
 
+  // 1. Property ko favorite / unfavorite toggle karne ke liye
+  Future<bool> toggleFavorite({
+    required int propertyId,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/favorites/$propertyId/toggle');
+    final response = await _client.post(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['is_favorite'] as bool? ?? false;
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to update favorite (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  // 2. Logged-in student ki saari saved properties fetch karne ke liye
+  Future<List<Property>> fetchMyFavorites({required String token}) async {
+    final uri = Uri.parse('$baseUrl/favorites/my');
+    final response = await _client.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((item) {
+        final propJson = item['property'] as Map<String, dynamic>;
+        return Property.fromJson(propJson);
+      }).toList();
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to fetch favorites (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  // 3. Check karne ke liye ki kya ye property logged-in user ne save ki hui hai
+  Future<bool> checkIsFavorite({
+    required int propertyId,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/favorites/check/$propertyId');
+    final response = await _client.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['is_favorite'] as bool? ?? false;
+    }
+    return false;
+  }
 
 }

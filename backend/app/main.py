@@ -6,6 +6,7 @@ from app.routers import (
     auth_router,
     health_router,
     properties_router,
+    favorites_router,
 )
 
 app = FastAPI(
@@ -28,6 +29,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(properties_router)
+app.include_router(favorites_router)
 
 
 
