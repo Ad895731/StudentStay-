@@ -3,6 +3,7 @@ from app.models.amenity import Amenity
 from app.models.favourite import Favourite
 from app.models.inquiry import Inquiry
 from app.models.property import Property, PropertyImage, property_amenities
+from app.models.review import Review
 from app.models.room import Room
 from app.models.user import User
 
@@ -15,4 +16,5 @@ __all__ = [
     "property_amenities",
     "Favourite",
     "Inquiry",
+    "Review",
 ]

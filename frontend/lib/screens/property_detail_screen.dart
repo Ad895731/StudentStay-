@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/property.dart';
+import '../models/review.dart';
 import '../services/api_service.dart';
 import '../services/directions_service.dart';
 
@@ -29,6 +30,11 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   bool _isFavorite = false;
   bool _isLoadingFavorite = false;
 
+  // Reviews state
+  RatingSummary _ratingSummary = RatingSummary(averageRating: 0.0, totalReviews: 0);
+  List<ReviewItem> _reviews = [];
+  bool _isLoadingReviews = false;
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +44,24 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
       _fetchFullDetails();
     }
     _checkFavoriteStatus();
+    _loadReviewsAndRatings();
+  }
+
+  Future<void> _loadReviewsAndRatings() async {
+    setState(() => _isLoadingReviews = true);
+    try {
+      final summary = await _apiService.fetchRatingSummary(_property.id);
+      final list = await _apiService.fetchPropertyReviews(_property.id);
+      if (mounted) {
+        setState(() {
+          _ratingSummary = summary;
+          _reviews = list;
+          _isLoadingReviews = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingReviews = false);
+    }
   }
 
   Future<void> _checkFavoriteStatus() async {
@@ -317,6 +341,153 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     );
   }
 
+  void _openWriteReviewDialog() {
+    final token = widget.ownerToken;
+    if (token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in as a student to write a review.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    int selectedRating = 5;
+    final commentController = TextEditingController();
+    final reviewFormKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setReviewState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Form(
+              key: reviewFormKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Rate & Review this Stay',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Your honest review helps other college students find the best stays.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Star Rating Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final starValue = index + 1;
+                      return IconButton(
+                        iconSize: 36,
+                        icon: Icon(
+                          starValue <= selectedRating ? Icons.star : Icons.star_border,
+                          color: Colors.amber,
+                        ),
+                        onPressed: () => setReviewState(() => selectedRating = starValue),
+                      );
+                    }),
+                  ),
+                  Center(
+                    child: Text(
+                      '$selectedRating of 5 Stars',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Review Comment Input
+                  TextFormField(
+                    key: const Key('review_comment_input'),
+                    controller: commentController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Your Experience & Review *',
+                      hintText: 'e.g. Clean rooms, supportive owner, Wi-Fi speed is good...',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) =>
+                        (v == null || v.trim().length < 3) ? 'Review must be at least 3 characters' : null,
+                  ),
+                  const SizedBox(height: 20),
+
+                  ElevatedButton(
+                    key: const Key('submit_review_button'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            if (!reviewFormKey.currentState!.validate()) return;
+                            setReviewState(() => isSubmitting = true);
+                            final nav = Navigator.of(ctx);
+                            final messenger = ScaffoldMessenger.of(context);
+
+                            try {
+                              await _apiService.submitReview(
+                                propertyId: _property.id,
+                                rating: selectedRating,
+                                comment: commentController.text.trim(),
+                                token: token,
+                              );
+                              if (mounted) {
+                                nav.pop();
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Thank you! Your review has been published.'),
+                                    backgroundColor: Colors.green,
+                                    duration: Duration(seconds: 3),
+                                  ),
+                                );
+                                _loadReviewsAndRatings();
+                              }
+                            } catch (e) {
+                              setReviewState(() => isSubmitting = false);
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+                              );
+                            }
+                          },
+                    child: isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Post Review',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _fetchFullDetails() async {
     try {
       final full = await _apiService.fetchPropertyDetail(_property.id);
@@ -423,6 +594,110 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
         });
       }
     }
+  }
+
+  Widget _buildReviewsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.star, color: Colors.amber, size: 24),
+                const SizedBox(width: 6),
+                Text(
+                  _ratingSummary.averageRating > 0
+                      ? '${_ratingSummary.averageRating} (${_ratingSummary.totalReviews} reviews)'
+                      : 'No reviews yet',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            TextButton.icon(
+              key: const Key('write_review_button'),
+              icon: const Icon(Icons.rate_review_outlined, size: 18),
+              label: const Text('Write Review'),
+              onPressed: _openWriteReviewDialog,
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        if (_isLoadingReviews)
+          const Center(child: Padding(padding: EdgeInsets.all(12.0), child: CircularProgressIndicator()))
+        else if (_reviews.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Text(
+              'Be the first student to review this stay!',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          )
+        else
+          Column(
+            children: _reviews.map((rev) {
+              final dateStr = '${rev.createdAt.day}/${rev.createdAt.month}/${rev.createdAt.year}';
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundColor: Colors.blue.shade100,
+                          child: Text(
+                            rev.studentName.isNotEmpty ? rev.studentName[0].toUpperCase() : 'S',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          rev.studentName,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: List.generate(
+                            rev.rating,
+                            (_) => const Icon(Icons.star, color: Colors.amber, size: 14),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          dateStr,
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      rev.comment,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade800, height: 1.3),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+      ],
+    );
   }
 
   Widget _buildImageGallery() {
@@ -874,6 +1149,13 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                       ),
                     ),
                   ],
+
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+
+                  // Student Reviews & Ratings Section
+                  _buildReviewsSection(),
                 ],
               ),
             ),

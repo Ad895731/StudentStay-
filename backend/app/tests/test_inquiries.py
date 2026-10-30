@@ -121,3 +121,4 @@ def test_owner_cannot_inquire_on_own_property():
     )
     assert res.status_code == 400
     assert "own property" in res.json()["detail"].lower()
+

@@ -169,3 +169,4 @@ def update_inquiry_status(
     db.commit()
     db.refresh(inquiry)
     return serialize_inquiry_for_user(inquiry, current_user.id)
+

@@ -8,6 +8,7 @@ from app.routers import (
     health_router,
     inquiries_router,
     properties_router,
+    reviews_router,
 )
 
 app = FastAPI(
@@ -32,6 +33,7 @@ app.include_router(admin_router)
 app.include_router(properties_router)
 app.include_router(favorites_router)
 app.include_router(inquiries_router)
+app.include_router(reviews_router)
 
 
 @app.get("/")

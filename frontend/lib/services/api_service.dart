@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../models/inquiry.dart';
 import '../models/property.dart';
+import '../models/review.dart';
 import '../models/user.dart';
 
 class ApiService {
@@ -711,6 +712,60 @@ class ApiService {
         extractErrorMessage(
           response,
           fallback: 'Failed to update inquiry status (${response.statusCode})',
+        ),
+      );
+    }
+  }
+
+  // 8. Fetch rating summary (average stars & total count)
+  Future<RatingSummary> fetchRatingSummary(int propertyId) async {
+    final uri = Uri.parse('$baseUrl/properties/$propertyId/rating-summary');
+    final response = await _client.get(uri);
+    if (response.statusCode == 200) {
+      return RatingSummary.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    } else {
+      return RatingSummary(averageRating: 0.0, totalReviews: 0);
+    }
+  }
+
+  // 9. Fetch list of reviews for a stay
+  Future<List<ReviewItem>> fetchPropertyReviews(int propertyId) async {
+    final uri = Uri.parse('$baseUrl/properties/$propertyId/reviews');
+    final response = await _client.get(uri);
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => ReviewItem.fromJson(json as Map<String, dynamic>)).toList();
+    } else {
+      return [];
+    }
+  }
+
+  // 10. Submit a rating & review
+  Future<ReviewItem> submitReview({
+    required int propertyId,
+    required int rating,
+    required String comment,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/properties/$propertyId/reviews');
+    final response = await _client.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'rating': rating,
+        'comment': comment,
+      }),
+    );
+    if (response.statusCode == 201) {
+      return ReviewItem.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    } else {
+      throw Exception(
+        extractErrorMessage(
+          response,
+          fallback: 'Failed to submit review (${response.statusCode})',
         ),
       );
     }

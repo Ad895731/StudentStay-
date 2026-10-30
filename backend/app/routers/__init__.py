@@ -5,6 +5,7 @@ from app.routers.favorites import router as favorites_router
 from app.routers.health import router as health_router
 from app.routers.inquiries import router as inquiries_router
 from app.routers.properties import router as properties_router
+from app.routers.reviews import router as reviews_router
 
 __all__ = [
     "admin_router",
@@ -13,4 +14,5 @@ __all__ = [
     "properties_router",
     "favorites_router",
     "inquiries_router",
+    "reviews_router",
 ]

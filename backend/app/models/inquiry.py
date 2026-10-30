@@ -39,3 +39,4 @@ class Inquiry(Base):
     property: Mapped["Property"] = relationship()
     student: Mapped["User"] = relationship(foreign_keys=[student_id])
     owner: Mapped["User"] = relationship(foreign_keys=[owner_id])
+

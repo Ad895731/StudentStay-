@@ -43,3 +43,4 @@ class InquiryResponse(BaseModel):
     student: UserSummary
 
     model_config = ConfigDict(from_attributes=True)
+
