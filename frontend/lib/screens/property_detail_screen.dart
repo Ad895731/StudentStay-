@@ -8,12 +8,16 @@ import '../services/directions_service.dart';
 
 class PropertyDetailScreen extends StatefulWidget {
   final Property property;
+  final String? userToken;
   final String? ownerToken;
   final ApiService? apiService;
+
+  String? get authToken => userToken ?? ownerToken;
 
   const PropertyDetailScreen({
     super.key,
     required this.property,
+    this.userToken,
     this.ownerToken,
     this.apiService,
   });
@@ -30,10 +34,14 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   bool _isFavorite = false;
   bool _isLoadingFavorite = false;
 
-  // Reviews state
+  // Reviews & Eligibility state
   RatingSummary _ratingSummary = RatingSummary(averageRating: 0.0, totalReviews: 0);
   List<ReviewItem> _reviews = [];
   bool _isLoadingReviews = false;
+  bool _canReview = false;
+  String _canReviewReason = '';
+
+  String? get authToken => widget.authToken;
 
   @override
   void initState() {
@@ -52,10 +60,25 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     try {
       final summary = await _apiService.fetchRatingSummary(_property.id);
       final list = await _apiService.fetchPropertyReviews(_property.id);
+      bool canRev = false;
+      String reason = '';
+      if (authToken != null) {
+        try {
+          final res = await _apiService.checkCanReview(
+            propertyId: _property.id,
+            token: authToken!,
+          );
+          canRev = res['can_review'] == true;
+          reason = res['reason']?.toString() ?? '';
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
           _ratingSummary = summary;
           _reviews = list;
+          _canReview = canRev;
+          _canReviewReason = reason;
           _isLoadingReviews = false;
         });
       }
@@ -65,7 +88,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   }
 
   Future<void> _checkFavoriteStatus() async {
-    final token = widget.ownerToken;
+    final token = authToken;
     if (token == null) return;
     try {
       final isFav = await _apiService.checkIsFavorite(
@@ -79,7 +102,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   }
 
   Future<void> _toggleFavorite() async {
-    final token = widget.ownerToken;
+    final token = authToken;
     if (token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -123,7 +146,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   }
 
   void _openScheduleVisitDialog() {
-    final token = widget.ownerToken;
+    final token = authToken;
     if (token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -342,12 +365,27 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   }
 
   void _openWriteReviewDialog() {
-    final token = widget.ownerToken;
+    final token = authToken;
     if (token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please log in as a student to write a review.'),
           duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    if (!_canReview) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _canReviewReason.isNotEmpty
+                ? _canReviewReason
+                : 'Anti-Fake Review Protection: Only verified students who have booked or completed a visit to this stay can post a review.',
+          ),
+          backgroundColor: Colors.orange.shade900,
+          duration: const Duration(seconds: 4),
         ),
       );
       return;
@@ -624,6 +662,29 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
           ],
         ),
         const SizedBox(height: 10),
+
+        if (!_canReview && authToken != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.verified_user_outlined, size: 18, color: Colors.amber.shade900),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Verified Residents Only: Only students with a confirmed visit or booking can leave a review.',
+                    style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+          ),
 
         if (_isLoadingReviews)
           const Center(child: Padding(padding: EdgeInsets.all(12.0), child: CircularProgressIndicator()))

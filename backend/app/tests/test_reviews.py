@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import uuid
 from decimal import Decimal
 from fastapi.testclient import TestClient
@@ -5,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.core.database import SessionLocal
 from app.core.security import create_access_token, hash_password
 from app.main import app
+from app.models.inquiry import Inquiry
 from app.models.property import Property
 from app.models.user import User
 
@@ -52,20 +54,73 @@ def create_property(owner_id: int) -> Property:
         db.close()
 
 
-def test_student_can_submit_and_update_review():
+def create_inquiry(property_id: int, student_id: int, owner_id: int, status: str = "confirmed") -> Inquiry:
+    db = SessionLocal()
+    try:
+        inquiry = Inquiry(
+            property_id=property_id,
+            student_id=student_id,
+            owner_id=owner_id,
+            visit_date=datetime.now(timezone.utc),
+            sharing_preference="single",
+            contact_phone="9876543210",
+            message="Looking forward to staying here",
+            status=status,
+        )
+        db.add(inquiry)
+        db.commit()
+        db.refresh(inquiry)
+        return inquiry
+    finally:
+        db.close()
+
+
+def test_unverified_student_cannot_post_fake_review():
+    """Unverified student who never visited/stayed gets 403 Forbidden."""
     owner, _ = create_user("owner")
     student, student_token = create_user("student")
     prop = create_property(owner.id)
 
     headers = {"Authorization": f"Bearer {student_token}"}
 
-    # 1. Initial rating summary is 0
+    # Check can-review endpoint returns False
+    can_rev = client.get(f"/properties/{prop.id}/can-review", headers=headers)
+    assert can_rev.status_code == 200
+    assert can_rev.json()["can_review"] is False
+
+    # Attempting to post review fails with 403
+    res = client.post(
+        f"/properties/{prop.id}/reviews",
+        json={"rating": 5, "comment": "Fake 5-star review"},
+        headers=headers,
+    )
+    assert res.status_code == 403
+    assert "verified" in res.json()["detail"].lower()
+
+
+def test_verified_student_can_submit_and_update_review():
+    """Verified student with confirmed inquiry can post and update review."""
+    owner, _ = create_user("owner")
+    student, student_token = create_user("student")
+    prop = create_property(owner.id)
+
+    # Give student a confirmed visit inquiry
+    create_inquiry(prop.id, student.id, owner.id, status="confirmed")
+
+    headers = {"Authorization": f"Bearer {student_token}"}
+
+    # 1. can-review endpoint returns True
+    can_rev = client.get(f"/properties/{prop.id}/can-review", headers=headers)
+    assert can_rev.status_code == 200
+    assert can_rev.json()["can_review"] is True
+
+    # 2. Initial rating summary is 0
     summary_res = client.get(f"/properties/{prop.id}/rating-summary")
     assert summary_res.status_code == 200
     assert summary_res.json()["average_rating"] == 0.0
     assert summary_res.json()["total_reviews"] == 0
 
-    # 2. Submit Review (4 stars)
+    # 3. Submit Review (4 stars)
     review_payload = {
         "rating": 4,
         "comment": "Great food and high-speed Wi-Fi, peaceful environment.",
@@ -80,12 +135,12 @@ def test_student_can_submit_and_update_review():
     assert rev_data["rating"] == 4
     assert rev_data["student"]["name"] == student.name
 
-    # 3. Check Rating Summary after review
+    # 4. Check Rating Summary after review
     summary_res2 = client.get(f"/properties/{prop.id}/rating-summary")
     assert summary_res2.json()["average_rating"] == 4.0
     assert summary_res2.json()["total_reviews"] == 1
 
-    # 4. Same student updates their review to 5 stars (Upsert behavior)
+    # 5. Same student updates their review to 5 stars (Upsert behavior)
     update_payload = {
         "rating": 5,
         "comment": "Updated: Owner fixed AC promptly, best stay ever!",
@@ -103,7 +158,7 @@ def test_student_can_submit_and_update_review():
     assert summary_res3.json()["average_rating"] == 5.0
     assert summary_res3.json()["total_reviews"] == 1
 
-    # 5. List reviews endpoint
+    # 6. List reviews endpoint
     list_res = client.get(f"/properties/{prop.id}/reviews")
     assert list_res.status_code == 200
     assert len(list_res.json()) == 1

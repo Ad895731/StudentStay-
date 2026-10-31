@@ -770,4 +770,21 @@ class ApiService {
       );
     }
   }
+
+  // 11. Check if student can review this property
+  Future<Map<String, dynamic>> checkCanReview({
+    required int propertyId,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/properties/$propertyId/can-review');
+    final response = await _client.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      return {'can_review': false, 'reason': 'Unable to check review eligibility.'};
+    }
+  }
 }

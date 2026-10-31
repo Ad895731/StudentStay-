@@ -1,6 +1,9 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.core.database import Base, engine
+import app.models  # noqa: F401 - ensure all models are registered in metadata
 from app.routers import (
     admin_router,
     auth_router,
@@ -11,10 +14,22 @@ from app.routers import (
     reviews_router,
 )
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager that ensures all database tables exist
+    on application startup (critical for fresh production deployments).
+    """
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Backend API for StudentStay accommodation discovery platform"
+    description="Backend API for StudentStay accommodation discovery platform",
+    lifespan=lifespan,
 )
 
 # Configure CORS for frontend access (Flutter web, mobile, etc.)
@@ -41,5 +56,5 @@ def root():
     return {
         "message": "Welcome to StudentStay API",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
     }

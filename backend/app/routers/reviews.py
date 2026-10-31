@@ -4,12 +4,54 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.models.inquiry import Inquiry
 from app.models.property import Property
 from app.models.review import Review
 from app.models.user import User
 from app.schemas.review import PropertyRatingSummary, ReviewCreate, ReviewResponse
 
 router = APIRouter(prefix="/properties", tags=["Reviews"])
+
+
+@router.get("/{property_id}/can-review")
+def check_can_review(
+    property_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Check if the current student is verified/eligible to review this stay.
+    To prevent fake reviews, only students who have a confirmed or completed visit
+    can leave a rating/review.
+    """
+    prop = db.scalar(select(Property).where(Property.id == property_id))
+    if not prop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
+
+    if prop.owner_id == current_user.id:
+        return {
+            "can_review": False,
+            "reason": "Property owners cannot review their own stay.",
+        }
+
+    # Verify if student has a confirmed or completed inquiry/visit
+    verified_visit = db.scalar(
+        select(Inquiry).where(
+            Inquiry.property_id == property_id,
+            Inquiry.student_id == current_user.id,
+            Inquiry.status.in_(["confirmed", "completed"]),
+        )
+    )
+    if not verified_visit:
+        return {
+            "can_review": False,
+            "reason": "Only verified students with a confirmed visit or stay can write a review.",
+        }
+
+    return {
+        "can_review": True,
+        "reason": "Eligible to write a review.",
+    }
 
 
 @router.post("/{property_id}/reviews", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
@@ -19,7 +61,10 @@ def submit_or_update_review(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Student submits or updates their rating and review for a stay."""
+    """
+    Student submits or updates their rating and review for a stay.
+    Enforces verified resident integrity: student must have a confirmed/completed visit.
+    """
     prop = db.scalar(select(Property).where(Property.id == property_id))
     if not prop:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found")
@@ -28,6 +73,20 @@ def submit_or_update_review(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Owners cannot review their own property",
+        )
+
+    # Fake review prevention: ensure student actually visited or stayed at this property
+    verified_visit = db.scalar(
+        select(Inquiry).where(
+            Inquiry.property_id == property_id,
+            Inquiry.student_id == current_user.id,
+            Inquiry.status.in_(["confirmed", "completed"]),
+        )
+    )
+    if not verified_visit:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only verified students with a confirmed visit or booking can review this stay.",
         )
 
     # Check if student already reviewed this property (Upsert / Update if exists)
