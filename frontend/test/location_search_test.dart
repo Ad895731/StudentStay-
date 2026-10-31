@@ -36,6 +36,9 @@ void main() {
       final searchFieldFinder = find.byKey(const Key('location_search_field'));
       expect(searchFieldFinder, findsOneWidget);
 
+      // Verify Use Current Location button exists
+      expect(find.byKey(const Key('use_current_location_button')), findsOneWidget);
+
       // Type "Kothrud"
       await tester.enterText(searchFieldFinder, 'Kothrud');
       await tester.pumpAndSettle();
@@ -57,6 +60,56 @@ void main() {
       expect(find.textContaining('Lat: 18.50740, Lon: 73.80770'), findsOneWidget);
     });
 
+    testWidgets('Instantly sets marker when pasting Google Maps coordinates directly', (tester) async {
+      final mockClient = MockClient((request) async {
+        return http.Response('{}', 200, headers: {'content-type': 'application/json'});
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LocationPickerScreen(
+            httpClient: mockClient,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final searchFieldFinder = find.byKey(const Key('location_search_field'));
+      // Paste coordinates copied from Google Maps
+      await tester.enterText(searchFieldFinder, '18.52043, 73.85671');
+      await tester.tap(find.byKey(const Key('location_search_submit_button')));
+      await tester.pumpAndSettle();
+
+      // Marker coordinates are immediately set without waiting for geocoding
+      expect(find.textContaining('Lat: 18.52043, Lon: 73.85671'), findsOneWidget);
+    });
+
+    testWidgets('Instantly sets marker when pasting Google Maps URL', (tester) async {
+      final mockClient = MockClient((request) async {
+        return http.Response('{}', 200, headers: {'content-type': 'application/json'});
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LocationPickerScreen(
+            httpClient: mockClient,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final searchFieldFinder = find.byKey(const Key('location_search_field'));
+      // Paste Google Maps URL
+      await tester.enterText(
+        searchFieldFinder,
+        'https://www.google.com/maps/place/Pune/@18.52043,73.85671,17z',
+      );
+      await tester.tap(find.byKey(const Key('location_search_submit_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Lat: 18.52043, Lon: 73.85671'), findsOneWidget);
+    });
+
     testWidgets('Shows error badge when no locations are found', (tester) async {
       final mockClient = MockClient((request) async {
         return http.Response('[]', 200, headers: {'content-type': 'application/json'});
@@ -76,7 +129,7 @@ void main() {
       await tester.tap(find.byKey(const Key('location_search_submit_button')));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('No locations found'), findsOneWidget);
+      expect(find.textContaining('No exact match found'), findsOneWidget);
     });
   });
 }

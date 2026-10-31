@@ -18,7 +18,7 @@ from app.routers import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Lifespan context manager that ensures all database tables exist
+    Lifespan context manager that ensures all database tables exist 
     on application startup (critical for fresh production deployments).
     """
     Base.metadata.create_all(bind=engine)

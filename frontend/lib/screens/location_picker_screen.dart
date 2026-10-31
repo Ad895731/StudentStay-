@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
@@ -29,6 +30,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   String? _selectedAddressName;
 
   bool _isSearching = false;
+  bool _isLocating = false;
   String? _searchError;
   List<Map<String, dynamic>> _searchResults = [];
 
@@ -56,10 +58,102 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     super.dispose();
   }
 
+  /// Parses coordinates from direct lat,lng or Google Maps links
+  LatLng? _parseCoordinatesOrGoogleMapsUrl(String input) {
+    final trimmed = input.trim();
+
+    // 1. Check Google Maps URLs with @lat,lng or q=lat,lng or ll=lat,lng
+    // e.g. https://www.google.com/maps/place/.../@18.52043,73.85671,17z
+    // or https://maps.google.com/?q=18.52043,73.85671
+    final urlRegex = RegExp(r'[@?&](?:q|ll)?=?([+-]?[0-9]+(?:\.[0-9]+)?),([+-]?[0-9]+(?:\.[0-9]+)?)');
+    final urlMatch = urlRegex.firstMatch(trimmed);
+    if (urlMatch != null) {
+      final lat = double.tryParse(urlMatch.group(1)!);
+      final lon = double.tryParse(urlMatch.group(2)!);
+      if (lat != null && lon != null && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+        return LatLng(lat, lon);
+      }
+    }
+
+    // 2. Direct Coordinates pattern: "18.52043, 73.85671" or "18.52043 73.85671" or "18.52043,73.85671"
+    final coordRegex = RegExp(r'^([+-]?[0-9]+(?:\.[0-9]+)?)[,\s]+([+-]?[0-9]+(?:\.[0-9]+)?)$');
+    final match = coordRegex.firstMatch(trimmed);
+    if (match != null) {
+      final lat = double.tryParse(match.group(1)!);
+      final lon = double.tryParse(match.group(2)!);
+      if (lat != null && lon != null && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+        return LatLng(lat, lon);
+      }
+    }
+
+    // 3. DMS coordinates (Degrees Minutes Seconds, e.g. 18°31'13.5"N 73°51'24.1"E)
+    final dmsRegex = RegExp(
+      r'''(\d+)[°\s]+(\d+)['\s]+([\d.]+)["\s]*([NSns])[,\s]+(\d+)[°\s]+(\d+)['\s]+([\d.]+)["\s]*([EWew])''',
+    );
+    final dmsMatch = dmsRegex.firstMatch(trimmed);
+    if (dmsMatch != null) {
+      double lat = double.parse(dmsMatch.group(1)!) +
+          double.parse(dmsMatch.group(2)!) / 60 +
+          double.parse(dmsMatch.group(3)!) / 3600;
+      if (dmsMatch.group(4)!.toUpperCase() == 'S') lat = -lat;
+
+      double lon = double.parse(dmsMatch.group(5)!) +
+          double.parse(dmsMatch.group(6)!) / 60 +
+          double.parse(dmsMatch.group(7)!) / 3600;
+      if (dmsMatch.group(8)!.toUpperCase() == 'W') lon = -lon;
+
+      if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+        return LatLng(lat, lon);
+      }
+    }
+
+    return null;
+  }
+
+  /// Reverse geocode to get a readable human address from coordinates
+  Future<void> _reverseGeocode(LatLng latLng) async {
+    try {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?lat=${latLng.latitude}&lon=${latLng.longitude}&format=json',
+      );
+      final response = await _client.get(
+        uri,
+        headers: {
+          'User-Agent': 'StudentStay-App/1.0 (contact: studentstay@example.com)',
+          'Accept': 'application/json',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted && data['display_name'] != null) {
+          setState(() {
+            _selectedAddressName = data['display_name'] as String;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
   Future<void> _searchLocation(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return;
 
+    // A. Check if the user pasted coordinates or a Google Maps link directly
+    final directCoord = _parseCoordinatesOrGoogleMapsUrl(trimmed);
+    if (directCoord != null) {
+      setState(() {
+        _selectedLocation = directCoord;
+        _searchResults = [];
+        _searchError = null;
+        _isSearching = false;
+        _selectedAddressName = 'Location: ${directCoord.latitude.toStringAsFixed(5)}, ${directCoord.longitude.toStringAsFixed(5)}';
+      });
+      _mapController.move(directCoord, 16.5);
+      _reverseGeocode(directCoord);
+      return;
+    }
+
+    // B. Search via Nominatim OpenStreetMap API
     setState(() {
       _isSearching = true;
       _searchError = null;
@@ -81,13 +175,46 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         final list = data.cast<Map<String, dynamic>>();
-        setState(() {
-          _searchResults = list;
-          _isSearching = false;
-          if (list.isEmpty) {
-            _searchError = 'No locations found for "$trimmed"';
+
+        if (list.isNotEmpty) {
+          setState(() {
+            _searchResults = list;
+            _isSearching = false;
+          });
+        } else {
+          // If no direct result and contains spaces/commas, try fallback with broader locality
+          final parts = trimmed.split(RegExp(r'[, ]+'));
+          if (parts.length > 2) {
+            final fallbackQuery = parts.sublist(1).join(' ');
+            final fallbackUri = Uri.parse(
+              'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(fallbackQuery)}&format=json&limit=5&addressdetails=1',
+            );
+            final fallbackRes = await _client.get(
+              fallbackUri,
+              headers: {
+                'User-Agent': 'StudentStay-App/1.0 (contact: studentstay@example.com)',
+                'Accept': 'application/json',
+              },
+            );
+            if (fallbackRes.statusCode == 200) {
+              final List<dynamic> fbData = jsonDecode(fallbackRes.body);
+              final fbList = fbData.cast<Map<String, dynamic>>();
+              if (fbList.isNotEmpty) {
+                setState(() {
+                  _searchResults = fbList;
+                  _isSearching = false;
+                });
+                return;
+              }
+            }
           }
-        });
+
+          setState(() {
+            _isSearching = false;
+            _searchError =
+                'No exact match found for "$trimmed". Tip: Paste coordinates from Google Maps (e.g. 18.5204, 73.8567) or search the broader area/city.';
+          });
+        }
       } else {
         setState(() {
           _isSearching = false;
@@ -113,7 +240,94 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         _searchResults = [];
         _searchController.text = _selectedAddressName ?? '';
       });
-      _mapController.move(loc, 16.0);
+      _mapController.move(loc, 16.5);
+    }
+  }
+
+  /// Live GPS Location of the owner standing on property
+  Future<void> _useCurrentLocation() async {
+    setState(() {
+      _isLocating = true;
+      _searchError = null;
+    });
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location services are disabled. Please turn on device GPS.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        setState(() => _isLocating = false);
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Location permission was denied.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          setState(() => _isLocating = false);
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permission permanently denied. Please allow location in your browser/device settings.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() => _isLocating = false);
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+
+      final currentLatLng = LatLng(position.latitude, position.longitude);
+      if (mounted) {
+        setState(() {
+          _selectedLocation = currentLatLng;
+          _isLocating = false;
+          _searchResults = [];
+          _searchError = null;
+        });
+        _mapController.move(currentLatLng, 17.0);
+        _reverseGeocode(currentLatLng);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📍 Location set to your current GPS position!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLocating = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not obtain current location: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -227,7 +441,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                             key: const Key('location_search_field'),
                             controller: _searchController,
                             decoration: const InputDecoration(
-                              hintText: 'Search locality, street, landmark, city...',
+                              hintText: 'Search area, city or paste Google Maps coordinates...',
                               border: InputBorder.none,
                               isDense: true,
                             ),
@@ -320,7 +534,31 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             ),
           ),
 
-          // 3. Bottom Selection Confirmation Card
+          // 3. Live GPS Location Floating Button
+          Positioned(
+            bottom: 185,
+            right: 16,
+            child: FloatingActionButton.extended(
+              key: const Key('use_current_location_button'),
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.blue.shade700,
+              elevation: 5,
+              icon: _isLocating
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.my_location),
+              label: Text(
+                _isLocating ? 'Locating...' : 'Use Current Location',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              onPressed: _isLocating ? null : _useCurrentLocation,
+            ),
+          ),
+
+          // 4. Bottom Selection Confirmation Card
           Positioned(
             bottom: 24,
             left: 16,
